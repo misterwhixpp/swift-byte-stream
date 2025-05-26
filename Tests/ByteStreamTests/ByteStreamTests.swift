@@ -1,24 +1,23 @@
 import Foundation
-import XCTest
+import Testing
 
 @testable import ByteStream
 
-final class ByteStreamTests: XCTestCase {
+final class ByteStreamTests {
     private var tempDirectory: URL!
 
-    override func setUpWithError() throws {
-        try super.setUpWithError()
+    init() throws {
         tempDirectory = FileManager.default.temporaryDirectory.appendingPathComponent(
             UUID().uuidString)
         try FileManager.default.createDirectory(
             at: tempDirectory, withIntermediateDirectories: true)
     }
 
-    override func tearDownWithError() throws {
-        try FileManager.default.removeItem(at: tempDirectory)
-        try super.tearDownWithError()
+    deinit {
+        try? FileManager.default.removeItem(at: tempDirectory)
     }
 
+    @Test("Read from file")
     func testReadFromFile() async throws {
         let testData = "Hello, World!".data(using: .utf8)!
         let fileURL = tempDirectory.appendingPathComponent("test.txt")
@@ -27,9 +26,10 @@ final class ByteStreamTests: XCTestCase {
         let stream = try ByteStream(forReading: fileURL)
         let readData = try await stream.readToEnd()
 
-        XCTAssertEqual(readData, testData)
+        #expect(readData == testData)
     }
 
+    @Test("Write to file")
     func testWriteToFile() async throws {
         let testData = "Hello, World!".data(using: .utf8)!
         let fileURL = tempDirectory.appendingPathComponent("test.txt")
@@ -39,9 +39,10 @@ final class ByteStreamTests: XCTestCase {
         await stream.close()
 
         let readData = try Data(contentsOf: fileURL)
-        XCTAssertEqual(readData, testData)
+        #expect(readData == testData)
     }
 
+    @Test("Read and write to same file")
     func testReadAndWriteToSameFile() async throws {
         let fileURL = tempDirectory.appendingPathComponent("test.txt")
         let testData = "Hello, World!".data(using: .utf8)!
@@ -54,20 +55,23 @@ final class ByteStreamTests: XCTestCase {
         let readStream = try ByteStream(forReading: fileURL)
         let readData = try await readStream.readToEnd()
 
-        XCTAssertEqual(readData, testData)
+        #expect(readData == testData)
     }
 
+    @Test("Handle non-existent file")
     func testHandleNonExistentFile() async throws {
         let fileURL = tempDirectory.appendingPathComponent("nonexistent.txt")
 
         do {
-            _ = try ByteStream(forReading: fileURL)
-            XCTFail("Expected error when reading non-existent file")
+            let stream = try ByteStream(forReading: fileURL)
+            _ = try await stream.read()
+            Issue.record("Expected error when reading non-existent file")
         } catch {
-            XCTAssertTrue(error is StreamError)
+            #expect(error is StreamError)
         }
     }
 
+    @Test("Read with custom buffer size")
     func testReadWithCustomBufferSize() async throws {
         let testData = "Hello, World!".data(using: .utf8)!
         let fileURL = tempDirectory.appendingPathComponent("test.txt")
@@ -76,9 +80,10 @@ final class ByteStreamTests: XCTestCase {
         let stream = try ByteStream(forReading: fileURL, bufferSize: 4)
         let readData = try await stream.readToEnd()
 
-        XCTAssertEqual(readData, testData)
+        #expect(readData == testData)
     }
 
+    @Test("Write large data")
     func testWriteLargeData() async throws {
         let fileURL = tempDirectory.appendingPathComponent("large.txt")
         let largeData = Data(count: 1024 * 1024)  // 1MB of zeros
@@ -88,9 +93,10 @@ final class ByteStreamTests: XCTestCase {
         await stream.close()
 
         let readData = try Data(contentsOf: fileURL)
-        XCTAssertEqual(readData.count, largeData.count)
+        #expect(readData.count == largeData.count)
     }
 
+    @Test("Append to file")
     func testAppendToFile() async throws {
         let fileURL = tempDirectory.appendingPathComponent("append.txt")
         let initialData = "Hello, ".data(using: .utf8)!
@@ -110,9 +116,10 @@ final class ByteStreamTests: XCTestCase {
         let readStream = try ByteStream(forReading: fileURL)
         let readData = try await readStream.readToEnd()
 
-        XCTAssertEqual(readData, initialData + appendData)
+        #expect(readData == initialData + appendData)
     }
 
+    @Test("Close stream multiple times")
     func testCloseStreamMultipleTimes() async throws {
         let fileURL = tempDirectory.appendingPathComponent("test.txt")
         let stream = try ByteStream(forWriting: fileURL)
@@ -121,8 +128,5 @@ final class ByteStreamTests: XCTestCase {
         await stream.close()
         await stream.close()
         await stream.close()
-
-        // If we get here, no error was thrown
-        XCTAssertTrue(true)
     }
 }
